@@ -1,0 +1,44 @@
+.bar {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 2rem;
+}
+
+.tile {
+  flex: 1;
+  min-width: 120px;
+  padding: 1rem 1.25rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: var(--background);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #888;
+  font-family: var(--font-geist-sans), sans-serif;
+}
+
+.value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1;
+  font-family: var(--font-geist-sans), sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  .tile {
+    border-color: #2d3748;
+  }
+
+  .label {
+    color: #64748b;
+  }
+}
