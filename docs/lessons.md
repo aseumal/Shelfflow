@@ -7,6 +7,7 @@ A running log of what we built and what each step taught about working with Clau
 ## Session 1 — Project setup & Prisma
 
 ### What we did
+
 - Initialised a Next.js 16 + React 19 app (`shelfflow`) — a reading productivity tracker
 - Set up **Prisma 7** with a **Neon Postgres** database
 - Defined three models: `Book`, `ReadingSession`, `Note`
@@ -19,16 +20,19 @@ The `url` field is no longer allowed inside `schema.prisma`. Connection strings 
 
 **Prisma 7 requires a driver adapter**
 There is no built-in query engine binary anymore. You must pass an adapter to `PrismaClient`:
+
 ```ts
 import { PrismaPg } from "@prisma/adapter-pg";
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
 });
 ```
+
 Install `@prisma/adapter-pg` and `pg` alongside the core packages.
 
 **Singleton pattern prevents connection storms in dev**
 Hot-reload creates a new module scope on every save. Without the `globalThis` guard, each reload opens a fresh pool:
+
 ```ts
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 export const prisma = globalForPrisma.prisma ?? new PrismaClient({ adapter });
@@ -46,6 +50,7 @@ The default `.gitignore` pattern `.env*` does not match a file literally named `
 ## Session 2 — POST /api/books
 
 ### What we did
+
 - Implemented `POST /api/books` as a Next.js App Router route handler
 - Input validated with **Zod** (`{ isbn: string }`)
 - Fetches book metadata from the **Open Library API** (`/isbn/{isbn}.json`)
@@ -61,6 +66,7 @@ The book record only contains an author key (e.g. `/authors/OL2873756A`). The na
 
 **Cover URL construction**
 Open Library returns an array of numeric cover IDs. The image URL pattern is:
+
 ```
 https://covers.openlibrary.org/b/id/{id}-L.jpg
 ```
@@ -76,6 +82,7 @@ When testing an API route, use curl, the DevTools console `fetch(...)`, or a GUI
 ## Session 3 — Vitest setup & tests
 
 ### What we did
+
 - Installed **Vitest** and wired up `npm test`
 - Configured `vitest.config.ts` to resolve the `@/` path alias (matching `tsconfig.json`)
 - Wrote three tests for `POST /api/books`: valid ISBN, malformed body, unknown ISBN
@@ -85,13 +92,17 @@ When testing an API route, use curl, the DevTools console `fetch(...)`, or a GUI
 
 **Route handlers are the easiest Next.js code to unit-test**
 Because they are plain async functions (`Request → Response`), you call them directly:
+
 ```ts
-const res = await POST(new Request("http://localhost/api/books", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ isbn: "..." }),
-}));
+const res = await POST(
+  new Request("http://localhost/api/books", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ isbn: "..." }),
+  }),
+);
 ```
+
 No test server, no `supertest`, no Next.js internals needed.
 
 **`vi.mock` is hoisted — mock before the module resolves**
@@ -102,6 +113,7 @@ Because `fetch` is a global in Node 18+, use `vi.stubGlobal('fetch', mockFn)` ra
 
 **Vitest needs its own alias config**
 `tsconfig.json` path aliases are not automatically picked up by Vitest. Duplicate the `@/` mapping in `vitest.config.ts`:
+
 ```ts
 resolve: { alias: { "@": path.resolve(__dirname, ".") } }
 ```
@@ -114,6 +126,7 @@ resolve: { alias: { "@": path.resolve(__dirname, ".") } }
 ## Session 4 — /books page redesign
 
 ### What we did
+
 - Replaced the static stub with a live Server Component that fetches books from Prisma
 - Built three components: `AddBookForm` (client), `BookCard` (presentational), and the page shell
 - `AddBookForm` calls `POST /api/books`, shows a loading state, displays API error messages inline, and calls `router.refresh()` on success
@@ -143,6 +156,7 @@ After implementing, the `/verify` skill starts the dev server, drives the actual
 ## Session 5 — GET /api/books/[id] & custom slash commands
 
 ### What we did
+
 - Implemented `GET /api/books/[id]` — returns one book with its `ReadingSession` records included, 404 if not found
 - Wrote 2 vitest tests: found (200 + sessions) and not found (404)
 - Created `.claude/commands/add-route.md` — a custom slash command that runs a full checklist (create handler → validate with Zod → write tests → run tests → summarise)
@@ -152,26 +166,77 @@ After implementing, the `/verify` skill starts the dev server, drives the actual
 
 **Dynamic route segments in Next.js 16 use `RouteContext` and `await ctx.params`**
 The `params` object in App Router route handlers is a Promise in Next.js 15+. You must `await` it:
+
 ```ts
 export async function GET(
   _req: NextRequest,
-  ctx: RouteContext<"/api/books/[id]">
+  ctx: RouteContext<"/api/books/[id]">,
 ): Promise<Response> {
   const { id } = await ctx.params;
   // ...
 }
 ```
+
 Forgetting the `await` gives you a Promise object instead of the string id.
 
 **Prisma `include` is how you fetch relations in one query**
 To return a book with its sessions, pass `include` to `findUnique`:
+
 ```ts
 prisma.book.findUnique({
   where: { id },
   include: { sessions: { orderBy: { date: "asc" } } },
 });
 ```
+
 No second query needed; the relation is defined in the schema.
 
 **Custom slash commands live in `.claude/commands/`**
 Create a Markdown file at `.claude/commands/<name>.md`. The file content becomes the prompt; `$ARGUMENTS` is replaced with whatever the user types after the command name. Commands are project-local (committed to the repo) and require a Claude Code restart to be discovered after first creation.
+
+---
+
+## Session 6 — GET /api/stats & the timezone trap
+
+### What we did
+
+- Implemented `GET /api/stats` returning four computed fields: `totalPagesRead`, `pagesPerDay`, `currentStreak`, and `booksFinished`
+- Used `Intl.DateTimeFormat` via `toLocaleDateString("en-CA", { timeZone: "Asia/Manila" })` to convert session timestamps to local calendar dates before streak math
+- Pinned "today" with `vi.setSystemTime` in tests so the streak assertions don't drift as the calendar moves
+- Wrote 4 vitest tests covering: correct values with data, all-zeros on empty DB, streak with a gap, and streak of 0 when today has no session
+
+### Key learnings
+
+**UTC date math silently breaks local-time streak calculations**
+
+This is the core gotcha. A `DateTime` stored in Postgres is UTC. If you do streak math directly on those UTC values, a session logged at 10 pm Manila time (UTC+8) becomes `14:00 UTC` the same day — fine. But a session logged at 1 am Manila time is `17:00 UTC the previous day`. Without the timezone conversion, that session counts as "yesterday" even though the user experienced it as today, and the streak silently under-counts.
+
+The fix is to convert every session date to the user's local calendar date _before_ any streak logic, not after:
+
+```ts
+function toManilaDate(date: Date): string {
+  // en-CA locale produces YYYY-MM-DD — reliable for Set comparisons
+  return date.toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
+}
+```
+
+Put all those strings in a `Set<string>`, then walk backward from "today" (also expressed as a Manila date) counting consecutive hits. The UTC timestamps never touch the streak logic at all.
+
+**The reviewer's instinct: spot the implicit assumption before the bug exists**
+
+The dangerous moment is when you write `s.date >= thirtyDaysAgo` or group sessions by `.toISOString().slice(0, 10)` and it _looks_ right in tests because your CI server happens to be in UTC. The bug only surfaces at runtime for users in non-UTC timezones, late at night, on the day boundary. Asking "which timezone does this date math assume?" before the code ships is how you catch it. That question is worth adding to any code-review checklist that touches date comparisons, streak/run calculations, or "today" logic.
+
+**`vi.useFakeTimers()` / `vi.setSystemTime` for deterministic date tests**
+
+Streak tests that call `new Date()` internally will fail or give wrong results when the real clock ticks past midnight. Pin it:
+
+```ts
+vi.useFakeTimers();
+vi.setSystemTime(new Date("2026-06-12T01:00:00Z")); // 09:00 Manila → "today" is June 12
+
+// ... your assertions ...
+
+vi.useRealTimers(); // or use afterEach to clean up
+```
+
+Without this, a test that passes at 11:58 pm can fail at 12:00 am with no code change.
