@@ -1,3 +1,4 @@
+import LogSessionForm from "./LogSessionForm";
 import styles from "./BookCard.module.css";
 
 type Book = {
@@ -23,7 +24,11 @@ export default function BookCard({ book }: { book: Book }) {
       <div className={styles.cover}>
         {book.coverUrl ? (
           // eslint-disable-next-line @next/next-eslint/no-img-element
-          <img src={book.coverUrl} alt={`Cover of ${book.title}`} className={styles.coverImg} />
+          <img
+            src={book.coverUrl}
+            alt={`Cover of ${book.title}`}
+            className={styles.coverImg}
+          />
         ) : (
           <div className={styles.coverPlaceholder} aria-hidden="true">
             <span className={styles.coverInitials}>
@@ -33,12 +38,15 @@ export default function BookCard({ book }: { book: Book }) {
         )}
       </div>
       <div className={styles.info}>
-        <span className={`${styles.badge} ${styles[`badge_${book.status}`] ?? ""}`}>
+        <span
+          className={`${styles.badge} ${styles[`badge_${book.status}`] ?? ""}`}
+        >
           {statusLabel}
         </span>
         <h2 className={styles.title}>{book.title}</h2>
         <p className={styles.author}>{book.author}</p>
         <p className={styles.pages}>{book.totalPages} pages</p>
+        <LogSessionForm bookId={book.id} totalPages={book.totalPages} />
       </div>
     </article>
   );
