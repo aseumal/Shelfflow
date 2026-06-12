@@ -1,0 +1,110 @@
+# Lessons — Claude Code in Action (Anthropic)
+
+A running log of what we built and what each step taught about working with Claude Code.
+
+---
+
+## Session 1 — Project setup & Prisma
+
+### What we did
+- Initialised a Next.js 16 + React 19 app (`shelfflow`) — a reading productivity tracker
+- Set up **Prisma 7** with a **Neon Postgres** database
+- Defined three models: `Book`, `ReadingSession`, `Note`
+- Ran the initial migration (`prisma migrate dev --name init`)
+
+### Key learnings
+
+**Prisma 7 breaks from earlier versions**
+The `url` field is no longer allowed inside `schema.prisma`. Connection strings move to `prisma.config.ts`, which reads from the environment via `dotenv`. Putting `url = env("DATABASE_URL")` in the schema will throw a `P1012` validation error.
+
+**Prisma 7 requires a driver adapter**
+There is no built-in query engine binary anymore. You must pass an adapter to `PrismaClient`:
+```ts
+import { PrismaPg } from "@prisma/adapter-pg";
+const prisma = new PrismaClient({
+  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
+});
+```
+Install `@prisma/adapter-pg` and `pg` alongside the core packages.
+
+**Singleton pattern prevents connection storms in dev**
+Hot-reload creates a new module scope on every save. Without the `globalThis` guard, each reload opens a fresh pool:
+```ts
+const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
+export const prisma = globalForPrisma.prisma ?? new PrismaClient({ adapter });
+if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+```
+
+**Watch out for whitespace in `.env`-style files**
+The project's `env` file had `DATABASE_URL ="..."` (space before `=`). Standard `.env` parsers silently misread this. Always use `KEY=value` with no surrounding spaces.
+
+**.env exclusion needs to cover non-standard filenames too**
+The default `.gitignore` pattern `.env*` does not match a file literally named `env`. Add it explicitly to avoid accidentally committing credentials.
+
+---
+
+## Session 2 — POST /api/books
+
+### What we did
+- Implemented `POST /api/books` as a Next.js App Router route handler
+- Input validated with **Zod** (`{ isbn: string }`)
+- Fetches book metadata from the **Open Library API** (`/isbn/{isbn}.json`)
+- Saves the result with Prisma and returns the created record
+
+### Key learnings
+
+**Open Library always redirects**
+`GET /isbn/{isbn}.json` returns a `302` to `/books/OL...M.json`. Pass `{ redirect: "follow" }` to `fetch`, otherwise you get a redirect response instead of JSON.
+
+**Author names require a second request**
+The book record only contains an author key (e.g. `/authors/OL2873756A`). The name lives at `GET /authors/{id}.json` → `data.name`. Build a small helper and call it after the book fetch.
+
+**Cover URL construction**
+Open Library returns an array of numeric cover IDs. The image URL pattern is:
+```
+https://covers.openlibrary.org/b/id/{id}-L.jpg
+```
+
+**Route handlers in Next.js App Router are plain Web API functions**
+They accept a `Request` and return a `Response` — no framework wrappers. This makes them straightforward to test without a running server.
+
+**Browser visits a URL with GET — that's always a 405 on a POST-only route**
+When testing an API route, use curl, the DevTools console `fetch(...)`, or a GUI tool like Postman. Visiting the URL in a browser will always look broken.
+
+---
+
+## Session 3 — Vitest setup & tests
+
+### What we did
+- Installed **Vitest** and wired up `npm test`
+- Configured `vitest.config.ts` to resolve the `@/` path alias (matching `tsconfig.json`)
+- Wrote three tests for `POST /api/books`: valid ISBN, malformed body, unknown ISBN
+- Mocked Prisma and `fetch` so tests run offline with no database
+
+### Key learnings
+
+**Route handlers are the easiest Next.js code to unit-test**
+Because they are plain async functions (`Request → Response`), you call them directly:
+```ts
+const res = await POST(new Request("http://localhost/api/books", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ isbn: "..." }),
+}));
+```
+No test server, no `supertest`, no Next.js internals needed.
+
+**`vi.mock` is hoisted — mock before the module resolves**
+Vitest hoists `vi.mock(...)` calls to the top of the file at transform time, so the mock is in place before the route module (and its Prisma import) is evaluated. This is why mocking the singleton works even though `lib/prisma.ts` is imported at module level.
+
+**`vi.stubGlobal` for `fetch`**
+Because `fetch` is a global in Node 18+, use `vi.stubGlobal('fetch', mockFn)` rather than `vi.spyOn`. Pair with `vi.resetAllMocks()` in `beforeEach` so stubs don't leak between tests.
+
+**Vitest needs its own alias config**
+`tsconfig.json` path aliases are not automatically picked up by Vitest. Duplicate the `@/` mapping in `vitest.config.ts`:
+```ts
+resolve: { alias: { "@": path.resolve(__dirname, ".") } }
+```
+
+**Commit hygiene: generated files belong in `.gitignore`**
+`app/generated/prisma/` is regenerated by `prisma generate` and should not be committed (it was already excluded here). Same principle for `.next/`, `node_modules/`, etc.
