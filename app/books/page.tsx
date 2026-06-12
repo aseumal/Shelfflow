@@ -1,24 +1,24 @@
+import { prisma } from "@/lib/prisma";
+import AddBookForm from "./AddBookForm";
+import BookCard from "./BookCard";
 import styles from "./page.module.css";
 
-const books = [
-  { title: "The Pragmatic Programmer", author: "David Thomas & Andrew Hunt", pages: 352 },
-  { title: "Clean Code", author: "Robert C. Martin", pages: 431 },
-  { title: "Designing Data-Intensive Applications", author: "Martin Kleppmann", pages: 611 },
-];
+export default async function BooksPage() {
+  const books = await prisma.book.findMany({ orderBy: { createdAt: "desc" } });
 
-export default function BooksPage() {
   return (
     <main className={styles.main}>
-      <h1 className={styles.heading}>Books</h1>
-      <div className={styles.grid}>
-        {books.map((book) => (
-          <div key={book.title} className={styles.card}>
-            <h2 className={styles.title}>{book.title}</h2>
-            <p className={styles.author}>{book.author}</p>
-            <p className={styles.pages}>{book.pages} pages</p>
-          </div>
-        ))}
-      </div>
+      <h1 className={styles.heading}>My Books</h1>
+      <AddBookForm />
+      {books.length === 0 ? (
+        <p className={styles.empty}>No books yet. Add your first one above.</p>
+      ) : (
+        <div className={styles.grid}>
+          {books.map((book) => (
+            <BookCard key={book.id} book={book} />
+          ))}
+        </div>
+      )}
     </main>
   );
 }
