@@ -49,7 +49,11 @@ export default function AddBookForm() {
           required
           aria-label="ISBN"
         />
-        <button className={styles.button} type="submit" disabled={loading || !isbn.trim()}>
+        <button
+          className={styles.button}
+          type="submit"
+          disabled={loading || !isbn.trim()}
+        >
           {loading ? "Adding…" : "Add book"}
         </button>
       </form>

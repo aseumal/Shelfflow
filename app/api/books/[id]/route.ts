@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET(
   _req: NextRequest,
-  ctx: RouteContext<"/api/books/[id]">
+  ctx: RouteContext<"/api/books/[id]">,
 ): Promise<Response> {
   const { id } = await ctx.params;
 
@@ -13,7 +13,10 @@ export async function GET(
   });
 
   if (!book) {
-    return Response.json({ error: `No book found with id ${id}` }, { status: 404 });
+    return Response.json(
+      { error: `No book found with id ${id}` },
+      { status: 404 },
+    );
   }
 
   return Response.json(book);

@@ -47,7 +47,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!parsed.success) {
     return Response.json(
       { error: "Validation failed", issues: parsed.error.issues },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -57,7 +57,7 @@ export async function POST(request: Request): Promise<Response> {
   if (existing) {
     return Response.json(
       { error: "Book with this ISBN already exists" },
-      { status: 409 }
+      { status: 409 },
     );
   }
 
@@ -65,14 +65,14 @@ export async function POST(request: Request): Promise<Response> {
   if (!olBook) {
     return Response.json(
       { error: `No book found for ISBN ${isbn}` },
-      { status: 404 }
+      { status: 404 },
     );
   }
 
   if (!olBook.title) {
     return Response.json(
       { error: `Open Library record for ISBN ${isbn} is missing a title` },
-      { status: 422 }
+      { status: 422 },
     );
   }
 

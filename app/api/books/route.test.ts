@@ -26,7 +26,7 @@ function postRequest(body: unknown): Request {
 
 function makeFetch(
   bookPayload: unknown,
-  authorPayload: unknown = { name: "Test Author" }
+  authorPayload: unknown = { name: "Test Author" },
 ) {
   return vi.fn().mockImplementation((url: string) => {
     if (url.includes("/isbn/")) {
@@ -70,7 +70,7 @@ describe("POST /api/books", () => {
         number_of_pages: 464,
         authors: [{ key: "/authors/OL123A" }],
         covers: [8315361],
-      })
+      }),
     );
 
     const res = await POST(postRequest({ isbn: "9780062316110" }));
@@ -97,7 +97,7 @@ describe("POST /api/books", () => {
 
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue({ ok: false, status: 404 })
+      vi.fn().mockResolvedValue({ ok: false, status: 404 }),
     );
 
     const res = await POST(postRequest({ isbn: "0000000000000" }));

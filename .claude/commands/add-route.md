@@ -1,6 +1,7 @@
 Add a new Next.js API route: $ARGUMENTS
 
 Checklist:
+
 1. Create the route handler in app/api/
 2. Validate input with zod
 3. Write vitest tests for success and failure cases
