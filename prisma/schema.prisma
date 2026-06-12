@@ -1,0 +1,43 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Book {
+  id         String   @id @default(cuid())
+  isbn       String   @unique
+  title      String
+  author     String
+  coverUrl   String?
+  totalPages Int
+  status     String   @default("queued")
+  createdAt  DateTime @default(now())
+
+  sessions ReadingSession[]
+  notes    Note[]
+}
+
+model ReadingSession {
+  id        String   @id @default(cuid())
+  bookId    String
+  date      DateTime
+  startPage Int
+  endPage   Int
+  minutes   Int
+
+  book Book @relation(fields: [bookId], references: [id])
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  bookId    String
+  chapter   String
+  content   String
+  createdAt DateTime @default(now())
+
+  book Book @relation(fields: [bookId], references: [id])
+}
